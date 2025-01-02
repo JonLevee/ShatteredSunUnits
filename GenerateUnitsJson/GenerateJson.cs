@@ -84,19 +84,13 @@ namespace GenerateUnitsJson
 
         }
 
-        private Dictionary<string,string> factionLookup = new Dictionary<string,string>();
+        private Dictionary<string, string> factionLookup = new Dictionary<string, string>();
         private Dictionary<string, bool> unitEnabled = new Dictionary<string, bool>();
 
         public void GenerateData()
         {
-            using (LuaHelper.GetLuaTable(luaRoot, "common/systems/factions.lua", "FactionsData", out LuaTable table))
-            {
-                foreach (var item in table.Values.Cast<LuaTable>())
-                {
-                    Debug.Assert(item != null);
-                    factionLookup.Add(item["tpLetter"].ToStringNullSafe(), item["name"].ToStringNullSafe());
-                }
-            }
+            var data = new JsonObject();
+            var factions = (JsonArray)(data["factions"] = new JsonArray());
 
             using (LuaHelper.GetLuaTable(luaRoot, "common/units/availableUnits.lua", "AvailableUnits", out LuaTable table))
             {
@@ -106,7 +100,20 @@ namespace GenerateUnitsJson
                 }
             }
 
-            var data = new object();
+            using (LuaHelper.GetLuaTable(luaRoot, "common/systems/factions.lua", "FactionsData", out LuaTable table))
+            {
+                foreach (var item in table.Values.Cast<LuaTable>())
+                {
+                    Debug.Assert(item != null);
+                    var faction = new json
+                    var name = item["name"].ToStringNullSafe();
+                    factionLookup.Add(item["tpLetter"].ToStringNullSafe(), name);
+                    factions.Add(name);
+                }
+            }
+
+
+            var units =
             foreach (var file in Directory.GetFiles(Path.Combine(luaRoot, "common/units/unitsTemplates"), "*.santp", SearchOption.AllDirectories))
             {
                 var relativePath = file.Substring(luaRoot.Length + 1);
@@ -114,13 +121,9 @@ namespace GenerateUnitsJson
                 {
                     // converting the table to json format makes it easier to process
                     var jsonNode = JsonHelper.ConvertLuaTableToJson(table);
-                    foreach (var unitField in unitFields.Where(uf=>uf.FieldType != UnitFieldTypeEnum.Ignore))
+                    foreach (var result in GetUnitMatchResults(jsonNode, unitFields))
                     {
-                        var pathParts = unitField.Path.Split('/').ToList();
-                        if (TryGetField(jsonNode, pathParts, 0))
-                        {
 
-                        }
                     }
                 }
             }
@@ -130,29 +133,15 @@ namespace GenerateUnitsJson
 
         }
 
-        private bool TryGetField(JsonNode node, List<string> pathParts, int pathIndex)
+        private struct UnitMatchResult
         {
-            for (; node != null && pathIndex < pathParts.Count; pathIndex++)
-            {
-                var pathPart = pathParts[pathIndex];
-                if (node is JsonObject jObject)
-                {
-                    node = jObject[pathPart].ToNullSafe();
-                }
-                else if (node is JsonArray array)
-                {
-                    var save = pathParts[pathIndex - 1];
-                    for (var i = 0; i < array.Count; ++i)
-                    {
-                        pathParts[pathIndex - 1] = $"{save}[{i}]";
-                        Add(ld, unit, array[i].ToNullSafe(), createField, pathParts, pathIndex);
-                    }
-                    return;
-                }
 
-            }
+        }
+        private IEnumerable<UnitMatchResult> GetUnitMatchResults(JsonNode? node, UnitFields unitFields)
+        {
+            if (node == null)
+                yield break;
 
-            return false;
         }
 
     }

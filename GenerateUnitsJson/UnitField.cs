@@ -1,23 +1,46 @@
 ﻿namespace GenerateUnitsJson
 {
 
-    public class UnitFields : List<UnitField>
+    public class UnitFields : Dictionary<string, UnitFields>
     {
+        public UnitField? UnitField { get; set; }
+
         public void Add(
             string path,
             UnitFieldTypeEnum fieldType)
         {
-            Add(new UnitField {  
-                Path = path,
-                FieldType = fieldType
-            });
+            var pathParts = path.Split('/').ToList();
+            AddUnitField(path, path.Split('/').ToList(), 0, fieldType);
+        }
+
+        private void AddUnitField(
+            string path,
+            List<string> pathParts,
+            int pathIndex,
+            UnitFieldTypeEnum fieldType)
+        {
+            if (pathIndex >= pathParts.Count)
+            {
+                UnitField = new UnitField
+                {
+                    Path = path,
+                    FieldType = fieldType,
+                };
+                return;
+            }
+            var child = new UnitFields();
+            child.AddUnitField(path, pathParts, pathIndex + 1, fieldType);
+
+            Add(pathParts[pathIndex], child);
         }
     }
 
     public class UnitField
     {
-        public string Path { get; set; }
-        public UnitFieldTypeEnum FieldType { get; set; }
+        public required string Path { get; set; }
+        public required UnitFieldTypeEnum FieldType { get; set; }
+
+        public int Seen { get; set; } = 0;
     }
 
 }
