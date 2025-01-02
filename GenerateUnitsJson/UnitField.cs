@@ -28,10 +28,13 @@
                 };
                 return;
             }
-            var child = new UnitFields();
+            var childKey = pathParts[pathIndex];
+            if (!TryGetValue(childKey, out var child))
+            {
+                child = new UnitFields();
+                Add(childKey, child);
+            }
             child.AddUnitField(path, pathParts, pathIndex + 1, fieldType);
-
-            Add(pathParts[pathIndex], child);
         }
     }
 

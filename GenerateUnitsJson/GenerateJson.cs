@@ -29,11 +29,11 @@ namespace GenerateUnitsJson
             {"defence/health/max", UnitFieldTypeEnum.Long},
             {"defence/health/regen", UnitFieldTypeEnum.Long},
             {"defence/health/value", UnitFieldTypeEnum.Ignore},
-            {"defence/shields/max", UnitFieldTypeEnum.Long},
-            {"defence/shields/name", UnitFieldTypeEnum.String},
-            {"defence/shields/rechargeTime", UnitFieldTypeEnum.Long},
-            {"defence/shields/regen", UnitFieldTypeEnum.Long},
-            {"defence/shields/regenDelay", UnitFieldTypeEnum.Long},
+            {"defence/shields/*/max", UnitFieldTypeEnum.Long},
+            {"defence/shields/*/name", UnitFieldTypeEnum.String},
+            {"defence/shields/*/rechargeTime", UnitFieldTypeEnum.Long},
+            {"defence/shields/*/regen", UnitFieldTypeEnum.Long},
+            {"defence/shields/*/regenDelay", UnitFieldTypeEnum.Long},
             {"economy/buildTime", UnitFieldTypeEnum.Long},
             {"economy/cost/alloys", UnitFieldTypeEnum.Long},
             {"economy/cost/energy", UnitFieldTypeEnum.Long},
@@ -73,6 +73,8 @@ namespace GenerateUnitsJson
         };
 
         // need to add faction and tier
+        private Dictionary<string, string> factionLookup = new Dictionary<string, string>();
+        private Dictionary<string, bool> unitEnabled = new Dictionary<string, bool>();
 
 
         public void GenerateJsonData()
@@ -83,9 +85,6 @@ namespace GenerateUnitsJson
             GenerateData();
 
         }
-
-        private Dictionary<string, string> factionLookup = new Dictionary<string, string>();
-        private Dictionary<string, bool> unitEnabled = new Dictionary<string, bool>();
 
         public void GenerateData()
         {
@@ -105,7 +104,6 @@ namespace GenerateUnitsJson
                 foreach (var item in table.Values.Cast<LuaTable>())
                 {
                     Debug.Assert(item != null);
-                    var faction = new json
                     var name = item["name"].ToStringNullSafe();
                     factionLookup.Add(item["tpLetter"].ToStringNullSafe(), name);
                     factions.Add(name);
@@ -113,7 +111,8 @@ namespace GenerateUnitsJson
             }
 
 
-            var units =
+            var units = (JsonArray)(data["units"] = new JsonArray());
+
             foreach (var file in Directory.GetFiles(Path.Combine(luaRoot, "common/units/unitsTemplates"), "*.santp", SearchOption.AllDirectories))
             {
                 var relativePath = file.Substring(luaRoot.Length + 1);
@@ -121,29 +120,108 @@ namespace GenerateUnitsJson
                 {
                     // converting the table to json format makes it easier to process
                     var jsonNode = JsonHelper.ConvertLuaTableToJson(table);
-                    foreach (var result in GetUnitMatchResults(jsonNode, unitFields))
-                    {
-
-                    }
+                    var unit = GetUnitAsDictionary(jsonNode);
+                    units.Add(unit);
                 }
             }
 
-            var outputPath = "../../GenerateUnitsJson.json";
-            File.WriteAllText(outputPath, JsonSerializer.Serialize(data, JsonHelper.JsonOptions));
+            var outputPath = "../../../GenerateUnitsJson.json";
+            var fullPath = Path.GetFullPath(outputPath);
+            File.WriteAllText(fullPath, JsonSerializer.Serialize(data, JsonHelper.JsonOptions));
 
         }
 
-        private struct UnitMatchResult
+        private Dictionary<string, string> GetUnitAsDictionary(JsonNode node)
         {
+            var unit = new Dictionary<string, string>();
 
+            RecursiveMerge(unit, node, unitFields);
+            var tpId = unit["general/tpId"];
+            unit["enabled"] = (unitEnabled.TryGetValue(tpId, out var enabled) ? enabled : false).ToString();
+            unit["faction"] =factionLookup[tpId.Substring(0,2)];
+            return unit;
         }
-        private IEnumerable<UnitMatchResult> GetUnitMatchResults(JsonNode? node, UnitFields unitFields)
+
+        private void RecursiveMerge(Dictionary<string, string> unit, JsonNode? node, UnitFields unitFields)
         {
             if (node == null)
-                yield break;
+                return;
+            if (unitFields.UnitField != null)
+            {
+                var unitField = unitFields.UnitField;
+                ++unitField.Seen;
+                var formattedPath = node.GetPath().Replace("$.", string.Empty).Replace(".","/");
+                switch (unitField.FieldType)
+                {
+                    case UnitFieldTypeEnum.Ignore:
+                        break;
+                    case UnitFieldTypeEnum.String:
+                        unit[formattedPath] = node.GetValue<string>();
+                        break;
+                    case UnitFieldTypeEnum.Double:
+                        unit[formattedPath] = node.GetValue<double>().ToString(); ;
+                        break;
+                    case UnitFieldTypeEnum.Long:
+                        unit[formattedPath] = node.GetValue<long>().ToString();
+                        break;
+                    case UnitFieldTypeEnum.StringArray:
+                        if (node is JsonArray nodeArray)
+                        {
+                            unit[formattedPath] = string.Join(", ", nodeArray.Select(n => n.GetValue<string>()));
+                            break;
+                        }
+                        if (node is JsonObject nodeObject)
+                        {
+                            var list = new List<string>();
+                            foreach(var property in nodeObject)
+                            {
+                                if (((bool?)property.Value).GetValueOrDefault())
+                                {
+                                    list.Add(property.Key);
+                                }
+                            }
+                            unit[formattedPath] = string.Join(", ", list);
+                            break;
+                        }
+                        throw new InvalidOperationException();
+                    case UnitFieldTypeEnum.Image:
+                        unit[formattedPath] = node.GetValue<string>();
+                        break;
+                    case UnitFieldTypeEnum.Bool:
+                        unit[formattedPath] = node.GetValue<bool>().ToString(); ;
+                        break;
+                }
 
+            }
+            foreach (var childKey in unitFields.Keys)
+            {
+                if (node is JsonObject jsonObject)
+                {
+                    RecursiveMerge(unit, jsonObject[childKey], unitFields[childKey]);
+                    continue;
+                }
+
+                if (node is JsonArray jsonArray && childKey == "*")
+                {
+                    foreach(var child in jsonArray)
+                    {
+                        RecursiveMerge(unit, child, unitFields[childKey]);
+                    }
+                    continue;
+                }
+                throw new InvalidOperationException();
+            }
         }
 
+        private void MergeUnitData(Dictionary<string, string> unit, JsonNode? node, UnitField unitField, Queue<string> pathParts)
+        {
+            if (node == null || !pathParts.TryDequeue(out var pathKey))
+                return;
+            var child = node[pathKey];
+            MergeUnitData(unit, child, unitField, pathParts);
+
+        }
     }
+
 }
 
