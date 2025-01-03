@@ -1,5 +1,30 @@
 <html>
 <body>
+    <script>
+        document.addEventListener("DOMContentLoaded", function (event) {
+            console.log("Hello World!");
+            const json = getJsonData();
+            console.log(json);
+        });
+
+        async function getJsonData() {
+            const url = "file:///C/Source/ShatteredSunUnits/GenerateUnitsJson/GenerateUnitsJson.json";
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Response status: ${response.status}`);
+                }
+
+                const json = response.json();
+                return json;
+            } catch (error) {
+                console.error(error.message);
+                throw new Error(`Exception: ${error.message}`);
+            }
+
+        }
+
+    </script>
 
 </body>
 </html>

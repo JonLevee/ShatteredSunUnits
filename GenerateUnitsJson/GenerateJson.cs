@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using GenerateUnitsJson.Utils;
 using GenerateUnitsJson.Extensions;
 using System.Xml.Linq;
+using System.Diagnostics.Contracts;
 
 namespace GenerateUnitsJson
 {
@@ -72,24 +73,21 @@ namespace GenerateUnitsJson
 
         };
 
-        // need to add faction and tier
-        private Dictionary<string, string> factionLookup = new Dictionary<string, string>();
-        private Dictionary<string, bool> unitEnabled = new Dictionary<string, bool>();
+        // need to add tier
 
 
         public void GenerateJsonData()
         {
+            var factionLookup = new Dictionary<string, string>();
+            var unitEnabled = new Dictionary<string, bool>();
+            var tempTags = new HashSet<string>();
             var steamInfo = new SteamInfo();
             var steamRoot = steamInfo.GetRoot();
             luaRoot = Path.Combine(steamRoot, @"engine\LJ\lua");
-            GenerateData();
-
-        }
-
-        public void GenerateData()
-        {
             var data = new JsonObject();
             var factions = (JsonArray)(data["factions"] = new JsonArray());
+            var tags = (JsonArray)(data["tags"] = new JsonArray());
+            var units = (JsonArray)(data["units"] = new JsonArray());
 
             using (LuaHelper.GetLuaTable(luaRoot, "common/units/availableUnits.lua", "AvailableUnits", out LuaTable table))
             {
@@ -110,9 +108,6 @@ namespace GenerateUnitsJson
                 }
             }
 
-
-            var units = (JsonArray)(data["units"] = new JsonArray());
-
             foreach (var file in Directory.GetFiles(Path.Combine(luaRoot, "common/units/unitsTemplates"), "*.santp", SearchOption.AllDirectories))
             {
                 var relativePath = file.Substring(luaRoot.Length + 1);
@@ -120,26 +115,54 @@ namespace GenerateUnitsJson
                 {
                     // converting the table to json format makes it easier to process
                     var jsonNode = JsonHelper.ConvertLuaTableToJson(table);
-                    var unit = GetUnitAsDictionary(jsonNode);
-                    units.Add(unit);
+                    var unit = new Dictionary<string, string>();
+
+                    RecursiveMerge(unit, jsonNode, unitFields);
+                    var tpId = unit["general/tpId"];
+                    unit["enabled"] = (unitEnabled.TryGetValue(tpId, out var enabled) ? enabled : false).ToString();
+                    unit["faction"] = factionLookup[tpId.Substring(0, 2)];
+
+                    units.Add(ConvertDictionaryToExpandedJson(unit));
+
+                    foreach(var tag in unit["tags"].Split(',').Select(s=>s.Trim()))
+                    {
+                        tempTags.Add(tag);
+                    }
                 }
             }
 
+            foreach(var tag in tempTags.Order())
+            {
+                tags.Add(tag);
+            }
             var outputPath = "../../../GenerateUnitsJson.json";
             var fullPath = Path.GetFullPath(outputPath);
             File.WriteAllText(fullPath, JsonSerializer.Serialize(data, JsonHelper.JsonOptions));
 
         }
 
-        private Dictionary<string, string> GetUnitAsDictionary(JsonNode node)
+        private static readonly JsonNode EmptyNode = new JsonObject();
+        private JsonNode? ConvertDictionaryToExpandedJson(Dictionary<string, string> unit)
         {
-            var unit = new Dictionary<string, string>();
-
-            RecursiveMerge(unit, node, unitFields);
-            var tpId = unit["general/tpId"];
-            unit["enabled"] = (unitEnabled.TryGetValue(tpId, out var enabled) ? enabled : false).ToString();
-            unit["faction"] =factionLookup[tpId.Substring(0,2)];
-            return unit;
+            var root = new JsonObject();
+            foreach (var kv in unit.OrderBy(kv => kv.Key))
+            {
+                var node = root;
+                var keys = kv.Key.Split("/").ToList();
+                foreach (var key in keys.Take(Math.Max(0, keys.Count-1)))
+                {
+                    if (!node.TryGetPropertyValue(key, out var value))
+                    {
+                        value = new JsonObject();
+                        node.Add(key, value);
+                    }
+                    Contract.Assert(value != null);
+                    node = (JsonObject)value;
+                    Contract.Assert(node != null);
+                }
+                node.Add(keys.Last(), kv.Value);
+            }
+            return root;
         }
 
         private void RecursiveMerge(Dictionary<string, string> unit, JsonNode? node, UnitFields unitFields)
