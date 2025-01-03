@@ -8,22 +8,31 @@
         });
 
         async function getJsonData() {
-            const url = "file:///C/Source/ShatteredSunUnits/GenerateUnitsJson/GenerateUnitsJson.json";
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`Response status: ${response.status}`);
-                }
-
-                const json = response.json();
-                return json;
-            } catch (error) {
-                console.error(error.message);
-                throw new Error(`Exception: ${error.message}`);
-            }
-
+            //const url = "file:///C/Source/ShatteredSunUnits/GenerateUnitsJson/GenerateUnitsJson.json";
+            const url = "https://raw.githubusercontent.com/JonLevee/ShatteredSunUnits/refs/heads/develop/GenerateUnitsJson/GenerateUnitsJson.json";
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Response status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(jsonData => {
+                    processJsonData(jsonData);
+                })
+                .catch(error => {
+                    throw new Error(`Error: ${error}`);
+                });
         }
 
+        function processJsonData(jsonData) {
+            console.error(jsonData);
+
+            /* 
+            #3dafff light blue border
+            #16222e very dark blue background
+            */
+        }
     </script>
 
 </body>

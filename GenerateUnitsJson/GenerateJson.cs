@@ -16,8 +16,6 @@ namespace GenerateUnitsJson
 
     internal class GenerateJson
     {
-        private string luaRoot = string.Empty;
-
         private static UnitFields unitFields = new UnitFields() {
             {"adjacency", UnitFieldTypeEnum.String},
             {"collisionInfo", UnitFieldTypeEnum.Ignore},
@@ -70,20 +68,65 @@ namespace GenerateUnitsJson
             {"transport/storage", UnitFieldTypeEnum.Ignore},
             {"turrets", UnitFieldTypeEnum.Ignore},
             {"visuals", UnitFieldTypeEnum.Ignore},
-
         };
 
         // need to add tier
 
-
         public void GenerateJsonData()
+        {
+            var outputDirectory = Path.GetFullPath("../../../..");
+            var steamInfo = new SteamInfo();
+            var steamRoot = steamInfo.GetRoot();
+            GenerateJsonDataFor(outputDirectory, steamRoot, "engine");
+            GenerateJsonDataFor(outputDirectory, steamRoot, "prototype");
+            CopyResources(outputDirectory, steamRoot);
+        }
+
+        private void CopyResources(string outputDirectory, string steamRoot)
+        {
+            var imagesDir = Path.Combine(outputDirectory, "Images");
+            if (Directory.Exists(imagesDir))
+            {
+                Directory.Delete(imagesDir, true);
+            }
+            Directory.CreateDirectory(imagesDir);
+
+            foreach(var srcFile in new[] {
+                @"engine\Sanctuary_Data\Resources\UI\UI\MapEditor\Images\background_logo.png"
+            })
+            {
+                File.Copy(Path.Combine(steamRoot, srcFile), Path.Combine(imagesDir, Path.GetFileName(srcFile)));
+            }
+
+            foreach (var srcDir in new[] {
+                @"engine\Sanctuary_Data\Resources\UI\Gameplay\IconsUnits",
+                @"engine\Sanctuary_Data\Resources\UI\Gameplay\Icons"
+            })
+            {
+                foreach(var srcFile in Directory.GetFiles(Path.Combine(steamRoot, srcDir),"*.png"))
+                {
+                    File.Copy(srcFile, Path.Combine(imagesDir, Path.GetFileName(srcFile)));
+                }
+            }
+        }
+
+        public void GenerateJsonDataFor(string outputDirectory, string steamRoot, string engineType)
         {
             var factionLookup = new Dictionary<string, string>();
             var unitEnabled = new Dictionary<string, bool>();
             var tempTags = new HashSet<string>();
-            var steamInfo = new SteamInfo();
-            var steamRoot = steamInfo.GetRoot();
-            luaRoot = Path.Combine(steamRoot, @"engine\LJ\lua");
+            string luaRoot = string.Empty;
+            switch(engineType)
+            {
+                case "engine":
+                    luaRoot = Path.Combine(steamRoot, @"engine\LJ\lua");
+                    break;
+                case "prototype":
+                    luaRoot = Path.Combine(steamRoot, @"prototype\RuntimeContent\Lua");
+                    break;
+                default:
+                    throw new InvalidOperationException();
+            }
             var data = new JsonObject();
             var factions = (JsonArray)(data["factions"] = new JsonArray());
             var tags = (JsonArray)(data["tags"] = new JsonArray());
@@ -135,10 +178,8 @@ namespace GenerateUnitsJson
             {
                 tags.Add(tag);
             }
-            var outputPath = "../../../GenerateUnitsJson.json";
-            var fullPath = Path.GetFullPath(outputPath);
-            File.WriteAllText(fullPath, JsonSerializer.Serialize(data, JsonHelper.JsonOptions));
-
+            var outputPath = Path.Combine(outputDirectory, "GenerateUnitsJson.json");
+            File.WriteAllText(outputPath, JsonSerializer.Serialize(data, JsonHelper.JsonOptions));
         }
 
         private static readonly JsonNode EmptyNode = new JsonObject();
