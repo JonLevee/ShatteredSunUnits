@@ -1,5 +1,15 @@
+<!DOCTYPE html>
 <html>
+<head>
+    <meta charset="UTF-8">
+    <title>Page Title</title>
+</head>
 <body>
+    <h1>Test</h1>
+    <table id="tableId">
+        <tbody id="tbodyID">
+        </tbody>
+    </table>
     <script>
         document.addEventListener("DOMContentLoaded", function (event) {
             console.log("Hello World!");
@@ -28,12 +38,32 @@
         function processJsonData(jsonData) {
             console.error(jsonData);
 
-            /* 
+            /*
             #3dafff light blue border
             #16222e very dark blue background
             */
         }
+
     </script>
 
 </body>
+<div hidden>
+    <table class="unitTemplate">
+        <tr>
+            <td>image</td>
+            <td>
+                <table>
+                    <tr>
+                        <td class="unitTemplate_general/displayName"></td>
+                        <td class="unitTemplate_general/Name"></td>
+                        <td class="unitTemplate_general/tpId"></td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+        </tr>
+    </table>
+</div>
 </html>
