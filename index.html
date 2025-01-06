@@ -3,23 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <title>Page Title</title>
+    <link rel="stylesheet" href="mainstyle.css">
 </head>
 <body>
-    <h1>Test</h1>
-    <table id="tableId">
-        <tbody id="tbodyID">
-        </tbody>
-    </table>
+    <div class="primary-background">
+        <img
+        class="primary-background-img"
+        src="https://raw.githubusercontent.com/JonLevee/ShatteredSunUnits/refs/heads/develop/Images/background_logo.png"
+        alt=""
+      >
+        <div class="primary-content">
+        <h1>Hello World!</h1>
+        <h1>Test</h1>
+        <table id="tableId">
+            <tbody id="tbodyID">
+            </tbody>
+        </table>
+        </div>
+    </div>
     <script>
         document.addEventListener("DOMContentLoaded", function (event) {
             console.log("Hello World!");
-            const json = getJsonData();
-            console.log(json);
+            displayJsonData();
         });
 
-        async function getJsonData() {
+        async function displayJsonData() {
             //const url = "file:///C/Source/ShatteredSunUnits/GenerateUnitsJson/GenerateUnitsJson.json";
-            const url = "https://raw.githubusercontent.com/JonLevee/ShatteredSunUnits/refs/heads/develop/GenerateUnitsJson/GenerateUnitsJson.json";
+            // const url = "https://raw.githubusercontent.com/JonLevee/ShatteredSunUnits/refs/heads/develop/GenerateUnitsJson/GenerateUnitsJson.json";
+            const url = "https://raw.githubusercontent.com/JonLevee/ShatteredSunUnits/refs/heads/develop/GenerateUnitsJson.json";
             fetch(url)
                 .then(response => {
                     if (!response.ok) {
