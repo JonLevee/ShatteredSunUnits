@@ -10,12 +10,15 @@ using GenerateUnitsJson.Utils;
 using GenerateUnitsJson.Extensions;
 using System.Xml.Linq;
 using System.Diagnostics.Contracts;
+using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace GenerateUnitsJson
 {
 
     internal class GenerateJson
     {
+        private static readonly Regex TechTierRegex = new Regex(@"\bTECH\d", RegexOptions.Compiled);
         private static UnitFields unitFields = new UnitFields() {
             {"adjacency", UnitFieldTypeEnum.String},
             {"collisionInfo", UnitFieldTypeEnum.Ignore},
@@ -70,16 +73,40 @@ namespace GenerateUnitsJson
             {"visuals", UnitFieldTypeEnum.Ignore},
         };
 
-        // need to add tier
-
         public void GenerateJsonData()
         {
             var outputDirectory = Path.GetFullPath("../../../..");
             var steamInfo = new SteamInfo();
             var steamRoot = steamInfo.GetRoot();
-            GenerateJsonDataFor(outputDirectory, steamRoot, "engine");
-            GenerateJsonDataFor(outputDirectory, steamRoot, "prototype");
+            var rootData = new JsonObject();
+
+            rootData["engine"] = GenerateJsonDataFor(steamRoot, "engine");
+            rootData["prototype"] = GenerateJsonDataFor(steamRoot, "prototype");
+
+            var outputFile = Path.Combine(outputDirectory, $"GenerateUnitsJson.json");
+            File.WriteAllText(outputFile, JsonSerializer.Serialize(rootData, JsonHelper.JsonOptions));
+
             CopyResources(outputDirectory, steamRoot);
+
+            CompareRoots(rootData, "factions", "tags");
+        }
+
+        private void CompareRoots(JsonObject rootData, params string[] names)
+        {
+            foreach (var name in names) 
+            {
+                var engine = rootData["engine"][name].AsArray().Select(n=>n.GetValue<string>()).ToList();
+                var prototype = rootData["prototype"][name].AsArray().Select(n => n.GetValue<string>()).ToList();
+                var keys = engine.Union(prototype).ToList();
+                var result = keys
+                    .Select(k=>new {k,engine=engine.Contains(k),prototype=prototype.Contains(k)})
+                    .Where(item=>item.engine != item.prototype)
+                    .ToList();
+                if (result.Any())
+                {
+                    //throw new Exception();
+                }
+            }
         }
 
         private void CopyResources(string outputDirectory, string steamRoot)
@@ -110,7 +137,7 @@ namespace GenerateUnitsJson
             }
         }
 
-        public void GenerateJsonDataFor(string outputDirectory, string steamRoot, string engineType)
+        public JsonObject GenerateJsonDataFor(string steamRoot, string engineType)
         {
             var factionLookup = new Dictionary<string, string>();
             var unitEnabled = new Dictionary<string, bool>();
@@ -164,6 +191,8 @@ namespace GenerateUnitsJson
                     var tpId = unit["general/tpId"];
                     unit["enabled"] = (unitEnabled.TryGetValue(tpId, out var enabled) ? enabled : false).ToString();
                     unit["faction"] = factionLookup[tpId.Substring(0, 2)];
+                    var techTierMatch = TechTierRegex.Match(unit["tags"]);
+                    unit["techTier"] = techTierMatch.Success ? techTierMatch.Value : "unknown";
 
                     units.Add(ConvertDictionaryToExpandedJson(unit));
 
@@ -178,8 +207,7 @@ namespace GenerateUnitsJson
             {
                 tags.Add(tag);
             }
-            var outputPath = Path.Combine(outputDirectory, "GenerateUnitsJson.json");
-            File.WriteAllText(outputPath, JsonSerializer.Serialize(data, JsonHelper.JsonOptions));
+            return data;
         }
 
         private static readonly JsonNode EmptyNode = new JsonObject();
